@@ -30,6 +30,10 @@ def error(msg: str):
     exit(1)
 
 
+def warn(msg: str):
+    print(f"    [yellow]warn:[/yellow] {msg}")
+
+
 def info(msg: str):
     print(f"    [green]info:[/green] {msg}")
 
@@ -83,7 +87,13 @@ def main():
     )
 
     params: list[resend.Emails.SendParams] = []
+    email_pattern = r"^((?!\.)[\w\-_.]*[^.])(@\w+)(\.\w+(\.\w+)?[^.\W])$"
+
     for email, content in iter(final_emails.items()):
+        if re.fullmatch(email_pattern, email) is None:
+            warn(f"invalid email address: {email}")
+            continue
+
         html = markdown.markdown(content[1])
         params.append(
             {
