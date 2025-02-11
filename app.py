@@ -21,7 +21,7 @@ def extract_vars(template_str: str) -> set[str]:
 def interpolate_vars(template_str: str, val_dict: dict[str, str]) -> str:
     res = template_str
     for key, val in val_dict.items():
-        res = res.replace(f"{{{{{key}}}}}", val)
+        res = res.replace(f"{{{{{key}}}}}", val.strip())
     return res
 
 
@@ -60,16 +60,26 @@ def main():
 
     info("generating emails")
     final_emails: dict[str, tuple[str, str]] = {}
+    email_pattern = r"^((?!\.)[\w\-_.]*[^.])(@\w+)(\.\w+(\.\w+)?[^.\W])$"
+
     for _, row in df.iterrows():
+        email = row[email_key].strip()
+        if re.fullmatch(email_pattern, email) is None:
+            warn(f"invalid email address: {email}")
+            continue
+
         val_dict = {var: row[var] for var in vars}
+
         interpolated_body = interpolate_vars(template, val_dict)
-        interpolated_title = interpolate_vars(title_template, val_dict)
-        final_emails[row[email_key]] = (interpolated_title, interpolated_body)
+        interpolated_title = interpolate_vars(title_template, val_dict).strip()
+
+        final_emails[email] = (interpolated_title, interpolated_body)
 
     (sample_email, sample_email_content) = next(iter(final_emails.items()))
     sample_path = os.path.abspath(f"./tmp/{sample_email}.html")
     if not os.path.exists("./tmp"):
         os.mkdir("./tmp")
+
     with open(sample_path, "w") as file:
         sample_html = markdown.markdown(sample_email_content[1])
         file.write(sample_html)
@@ -87,13 +97,8 @@ def main():
     )
 
     params: list[resend.Emails.SendParams] = []
-    email_pattern = r"^((?!\.)[\w\-_.]*[^.])(@\w+)(\.\w+(\.\w+)?[^.\W])$"
 
     for email, content in iter(final_emails.items()):
-        if re.fullmatch(email_pattern, email) is None:
-            warn(f"invalid email address: {email}")
-            continue
-
         html = markdown.markdown(content[1])
         params.append(
             {
